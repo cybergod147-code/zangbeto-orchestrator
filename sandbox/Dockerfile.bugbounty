@@ -1,0 +1,85 @@
+# ============================================================
+# ZANGBETO ORCHESTRATOR - BUG BOUNTY & OSINT LAYER
+# Extends: zangbeto-sandbox:latest (the 6.81GB base)
+# ============================================================
+
+FROM zangbeto-sandbox:latest
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV GOPATH=/root/go
+ENV GOPROXY=https://proxy.golang.org,direct
+
+# ------------------------------------------------------------
+# 1. Install Go (latest stable) + browser dependencies
+# ------------------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    wget \
+    unzip \
+    git \
+    chromium \
+    chromium-driver \
+    fonts-liberation \
+    libnss3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Download the LATEST stable Go version dynamically
+RUN GO_LATEST=$(curl -fsSL "https://go.dev/VERSION?m=text" | head -n1) && \
+    echo "Installing $GO_LATEST" && \
+    curl -fsSL "https://go.dev/dl/${GO_LATEST}.linux-amd64.tar.gz" -o /tmp/go.tar.gz && \
+    tar -C /usr/local -xzf /tmp/go.tar.gz && \
+    rm /tmp/go.tar.gz
+
+ENV PATH="/usr/local/go/bin:/root/go/bin:${PATH}"
+
+# Verify Go works
+RUN go version
+
+# ------------------------------------------------------------
+# 2. ProjectDiscovery Suite (each in its own cached layer)
+# ------------------------------------------------------------
+RUN go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
+RUN go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+RUN go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest
+RUN go install -v github.com/projectdiscovery/katana/cmd/katana@latest
+RUN go install -v github.com/projectdiscovery/dnsx/cmd/dnsx@latest
+RUN go install -v github.com/projectdiscovery/naabu/v2/cmd/naabu@latest
+
+# ------------------------------------------------------------
+# 3. Additional Bug Bounty & OSINT Tools
+# ------------------------------------------------------------
+RUN go install -v github.com/hahwul/dalfox/v2@latest
+RUN go install -v github.com/ffuf/ffuf/v2@latest
+RUN go install -v github.com/tomnomnom/waybackurls@latest
+RUN go install -v github.com/tomnomnom/assetfinder@latest
+RUN go install -v github.com/tomnomnom/httprobe@latest
+RUN go install -v github.com/lc/gau/v2/cmd/gau@latest
+RUN go install -v github.com/OJ/gobuster/v3@latest
+
+# ------------------------------------------------------------
+# 4. WPScan
+# ------------------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ruby \
+    ruby-dev \
+    build-essential \
+    libcurl4-openssl-dev \
+    zlib1g-dev \
+    && rm -rf /var/lib/apt/lists/* && \
+    gem install wpscan --no-document
+
+# ------------------------------------------------------------
+# 5. TestSSL.sh
+# ------------------------------------------------------------
+RUN git clone --depth 1 https://github.com/drwetter/testssl.sh.git /opt/testssl && \
+    ln -s /opt/testssl/testssl.sh /usr/local/bin/testssl
+
+# ------------------------------------------------------------
+# 6. Update Nuclei Templates
+# ------------------------------------------------------------
+RUN nuclei -update-templates || true
+
+WORKDIR /opt/security
+
+CMD ["sleep", "infinity"]

@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  zangbeto-kali:
+    image: zangbeto-sandbox:latest
+    container_name: zangbeto-kali
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    command: ["sleep", "infinity"]
+
+  zangbeto-browser:
+    image: mcr.microsoft.com/playwright:latest
+    container_name: zangbeto-browser
+    network_mode: host
+    command: ["sleep", "infinity"]

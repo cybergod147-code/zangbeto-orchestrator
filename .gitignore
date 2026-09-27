@@ -1,0 +1,44 @@
+# ═══ Secrets — NEVER commit ═══
+data/.secret_key
+data/users.json
+data/auth.json
+data/sessions.json
+data/login_attempts.json
+data/authorized_targets.json
+.env
+.env.local
+*.key
+*.pem
+
+# ═══ Data & Logs ═══
+data/audit_logs/
+data/reports/
+data/screenshots/
+data/browser_shots/
+data/*.jsonl
+data/*.json
+
+# ═══ Python ═══
+__pycache__/
+*.pyc
+venv/
+.venv/
+*.egg-info/
+
+# ═══ Node ═══
+node_modules/
+.next/
+out/
+dist/
+
+# ═══ OS ═══
+.DS_Store
+Thumbs.db
+
+# ═══ IDE ═══
+.vscode/
+.idea/
+
+# ═══ Backups ═══
+zangbeto_backup_*/
+*.bak
