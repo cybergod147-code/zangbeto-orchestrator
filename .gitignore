@@ -42,3 +42,19 @@ Thumbs.db
 # ═══ Backups ═══
 zangbeto_backup_*/
 *.bak
+# Backups
+*.bak
+*.bak-*
+*.backup
+
+# Data folder: keep registry, ignore logs/reports
+data/*
+!data/ai_models.json
+!data/authorized_targets.json
+
+# Python / Node
+backend/venv/
+frontend/node_modules/
+frontend/.next/
+__pycache__/
+*.pyc

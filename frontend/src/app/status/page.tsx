@@ -26,7 +26,7 @@ export default function StatusPage() {
     const token = localStorage.getItem("zangbeto_token");
     if (!token) { router.push("/security-gate"); return; }
     try {
-      const res = await fetch("http://localhost:8000/api/health", {
+      const res = await fetch("/api/health", {
         headers: { "Authorization": `Bearer ${token}` },
       });
       const data = await res.json();
@@ -48,7 +48,7 @@ export default function StatusPage() {
     setRestarting(name);
     const token = localStorage.getItem("zangbeto_token");
     try {
-      await fetch(`http://localhost:8000/api/health/restart/${name}`, {
+      await fetch(`/api/health/restart/${name}`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${token}` },
       });
@@ -102,7 +102,7 @@ export default function StatusPage() {
               <Server className="w-4 h-4 text-blue-400" />
               <span className="font-semibold text-white">Backend API</span>
             </div>
-            <p className="text-sm text-green-400">● Running — localhost:8000</p>
+            <p className="text-sm text-green-400">● Running</p>
           </div>
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
             <div className="flex items-center gap-2 mb-2">
@@ -110,7 +110,7 @@ export default function StatusPage() {
               <span className="font-semibold text-white">Ollama AI Brain</span>
             </div>
             <p className={`text-sm ${health?.ollama?.running ? "text-green-400" : "text-red-400"}`}>
-              {health?.ollama?.running ? "● Running — llama3.2" : "● Offline — run 'ollama serve'"}
+              {health?.ollama?.running ? "● Running — llama3.1:8b" : "● Offline — run 'ollama serve'"}
             </p>
           </div>
         </div>

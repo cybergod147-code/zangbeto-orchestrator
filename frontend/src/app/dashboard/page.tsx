@@ -1,7 +1,15 @@
 "use client";
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels";
-import { Terminal as TerminalIcon, FileCode, Bot, Send, Settings, Shield, Cpu, Folder, Play, AlertTriangle, Moon, Eye, Maximize2, LogOut, Globe, CheckCircle2 } from "lucide-react";
+import { Terminal as TerminalIcon, FileCode, Bot, Send, Settings, Shield, Cpu, Folder, Play, AlertTriangle, Moon, Eye, Maximize2, LogOut, Globe, CheckCircle2, ChevronDown } from "lucide-react";
 import { useState, useEffect, useRef, Fragment } from "react";
+
+type AIModel = {
+  id: string;
+  name: string;
+  provider: string;
+  free?: boolean;
+  enabled?: boolean;
+};
 
 export default function Dashboard() {
   const [messages, setMessages] = useState([
@@ -24,6 +32,12 @@ export default function Dashboard() {
   const [panels, setPanels] = useState({ ai: true, terminal: false, browser: false });
   const [showIdleWarning, setShowIdleWarning] = useState(false);
   const [idleSecondsLeft, setIdleSecondsLeft] = useState(60);
+
+  // ── AI MODEL SELECTOR ────────────────────────────────────────
+  const [aiModels, setAiModels] = useState<AIModel[]>([]);
+  const [activeModelId, setActiveModelId] = useState<string>("");
+  const [showModelMenu, setShowModelMenu] = useState(false);
+  // ────────────────────────────────────────────────────────────
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const terminalContainerRef = useRef<HTMLDivElement>(null);
@@ -72,6 +86,26 @@ export default function Dashboard() {
     window.location.href = "/security-gate";
   };
 
+  // ── LOAD AI MODELS (auto-added) ──────────────────────────────
+  useEffect(() => {
+    const token = localStorage.getItem("zangbeto_token");
+    if (!token) return;
+    const loadModels = () => {
+      fetch("/api/models/enabled", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          setAiModels(d.models || []);
+          setActiveModelId(d.active_model_id || "");
+        })
+        .catch(() => {});
+    };
+    loadModels();
+    const iv = setInterval(loadModels, 30000);
+    return () => clearInterval(iv);
+  }, []);
+
   // IDLE TIMEOUT
   const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
   const WARNING_TIME_MS = 60 * 1000;
@@ -100,7 +134,7 @@ export default function Dashboard() {
     idleTimerRef.current = setTimeout(() => {
       if (countdownRef.current) clearInterval(countdownRef.current);
       const u = localStorage.getItem("zangbeto_user") || "unknown";
-      fetch("http://localhost:8000/api/audit/idle-logout", {
+      fetch("/api/audit/idle-logout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: u }),
@@ -160,14 +194,14 @@ export default function Dashboard() {
       term.writeln("");
       term.writeln("\x1b[1;33m[GUARDIAN] Click here and type directly, or let AI run commands.\x1b[0m");
       term.writeln("");
-      
+
       term.onData(async (data) => {
         if (data === '\r') {
           const cmd = sandboxInputRef.current.trim();
           if (cmd) {
             term.write('\r\n');
             try {
-              const res = await apiFetch("http://localhost:8000/api/sandbox/write", {
+              const res = await apiFetch("/api/sandbox/write", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ command: cmd }),
@@ -360,22 +394,20 @@ export default function Dashboard() {
     setMessages(newMessages);
     setInput(""); setToolPrompt(null);
     try {
-      const response = await apiFetch("http://localhost:8000/api/chat", {
+      const response = await apiFetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: contextualMessage }),
+        body: JSON.stringify({ message: contextualMessage, model_id: activeModelId }),
       });
       const data = await response.json();
       setMessages([...newMessages, { sender: "Zangbeto", text: data.reply }]);
       speakText(data.reply);
 
-      // Browser actions trigger a modal (they need special approval)
       const browserMatches = data.reply.match(/```browser\n([\s\S]*?)```/g);
       if (browserMatches && browserMatches.length > 0) {
         const actionStr = browserMatches[0].replace(/```browser\n?/, "").replace(/```$/, "").trim();
         requestBrowserAction(actionStr);
       }
-      // Note: bash commands do NOT auto-trigger. User clicks "Sandbox" or "Live Terminal".
     } catch (error) {
       setMessages([...newMessages, { sender: "Zangbeto", text: "Error: Backend unreachable." }]);
     }
@@ -416,7 +448,7 @@ export default function Dashboard() {
     termWrite(`\x1b[90m  ─────────────────────────────────────────\x1b[0m`);
     setIsExecuting(true);
     try {
-      const res = await apiFetch("http://localhost:8000/api/execute", {
+      const res = await apiFetch("/api/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ command, authorization_confirmed: true }),
@@ -449,7 +481,7 @@ export default function Dashboard() {
     const command = terminalPendingCommand;
     setTerminalPendingCommand(null);
     try {
-      const res = await apiFetch("http://localhost:8000/api/terminal/write", {
+      const res = await apiFetch("/api/terminal/write", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ command, authorization_confirmed: true }),
@@ -476,9 +508,9 @@ export default function Dashboard() {
     const arg1 = parts[1] || "";
     const arg2 = parts.slice(2).join(" ") || "";
     setBrowserPendingAction(null);
-    
+
     try {
-      const res = await apiFetch("http://localhost:8000/api/browser/action", {
+      const res = await apiFetch("/api/browser/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, arg1, arg2, authorization_confirmed: true }),
@@ -507,7 +539,7 @@ export default function Dashboard() {
     const fmt = prompt("Report format? (pdf / html / md / json)", "pdf");
     if (!fmt) return;
     try {
-      const res = await apiFetch("http://localhost:8000/api/report/generate", {
+      const res = await apiFetch("/api/report/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ engagement_name: "Security Assessment", client_name: username, format: fmt.toLowerCase() })
@@ -516,7 +548,7 @@ export default function Dashboard() {
       if (data.status === "success") {
         alert(`✅ Report Generated!\n\nFile: ${data.filename}\nFindings: ${data.findings_count}\nScreenshots: ${data.screenshots_count}`);
         const token = localStorage.getItem("zangbeto_token") || "";
-        window.open(`http://localhost:8000${data.download_url}?token=${token}`, "_blank");
+        window.open(`${data.download_url}?token=${token}`, "_blank");
       }
     } catch (err) { alert(`Error: ${err}`); }
   };
@@ -534,8 +566,8 @@ export default function Dashboard() {
   };
 
   const expandPanel = (key: "ai" | "terminal" | "browser") => {
-    if (key === "browser") window.open("http://localhost:7800", "_blank");
-    else if (key === "terminal") window.open("http://localhost:7681", "_blank");
+    if (key === "browser") window.open("https://browser.zangbeto.gamers-hub.site", "_blank");
+    else if (key === "terminal") window.open("https://terminal.zangbeto.gamers-hub.site", "_blank");
   };
 
   const killAI = async () => {
@@ -546,9 +578,14 @@ export default function Dashboard() {
       setAiState("sleeping");
       termWrite("\x1b[1;31m⛔ AI KILL SWITCH ENGAGED\x1b[0m");
       termWrite("\x1b[90m   Terminal and Browser remain operational\x1b[0m");
-      
+
       try {
-        await apiFetch("http://localhost:8000/api/terminal/system-notify", {
+        await apiFetch("/api/ai/kill-switch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ engage: true }),
+        });
+        await apiFetch("/api/terminal/system-notify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: "⛔ AI KILL SWITCH ENGAGED", color: "red" }),
@@ -557,7 +594,12 @@ export default function Dashboard() {
     } else {
       termWrite("\x1b[1;32m✔ AI re-enabled\x1b[0m");
       try {
-        await apiFetch("http://localhost:8000/api/terminal/system-notify", {
+        await apiFetch("/api/ai/kill-switch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ engage: false }),
+        });
+        await apiFetch("/api/terminal/system-notify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: "✔ AI re-enabled", color: "green" }),
@@ -594,6 +636,8 @@ export default function Dashboard() {
   if (panels.ai) activePanels.push("ai");
   if (panels.terminal) activePanels.push("terminal");
   if (panels.browser) activePanels.push("browser");
+
+  const currentModelName = aiModels.find((m) => m.id === activeModelId)?.name || "Loading…";
 
   return (
     <div className="h-screen w-screen bg-zinc-950 text-zinc-300 flex flex-col overflow-hidden font-sans">
@@ -743,7 +787,7 @@ export default function Dashboard() {
                           <div className="h-7 border-b border-zinc-800 flex items-center px-3 bg-zinc-900 text-xs text-zinc-400 gap-2">
                             <TerminalIcon className="w-3 h-3" /> Kali Linux Terminal (shared with AI)
                           </div>
-                          <iframe src="http://localhost:7681" className="flex-1 w-full border-0 bg-black" title="Kali Terminal" />
+                          <iframe src="https://terminal.zangbeto.gamers-hub.site" className="flex-1 w-full border-0 bg-black" title="Kali Terminal" />
                         </div>
                       )}
                       {key === "browser" && (
@@ -751,7 +795,7 @@ export default function Dashboard() {
                           <div className="h-7 border-b border-zinc-800 flex items-center px-3 bg-zinc-900 text-xs text-zinc-400 gap-2">
                             🖥️ Chromium Browser (VPS-like)
                           </div>
-                          <iframe src="http://localhost:7800" className="flex-1 w-full border-0 bg-black" title="Chromium Browser" />
+                          <iframe src="https://browser.zangbeto.gamers-hub.site" className="flex-1 w-full border-0 bg-black" title="Chromium Browser" />
                         </div>
                       )}
                     </Panel>
@@ -781,7 +825,6 @@ export default function Dashboard() {
                   <p className={`font-bold mb-1 ${msg.sender === "You" ? "text-blue-400" : "text-green-400"}`}>{msg.sender}:</p>
                   <p className="whitespace-pre-wrap">{msg.text}</p>
 
-                  {/* EVERY bash command shows BOTH buttons — user chooses */}
                   {commands.map((cmd, cmdIndex) => (
                     <div key={`cmd-${cmdIndex}`} className="mt-3 flex flex-col gap-2 bg-zinc-900/70 border border-zinc-700 rounded-lg p-3">
                       <p className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Choose Execution Environment:</p>
@@ -800,7 +843,6 @@ export default function Dashboard() {
                     </div>
                   ))}
 
-                  {/* Browser actions */}
                   {browserActions.map((act, actIndex) => {
                     const actionStr = act.replace(/```browser\n?/, "").replace(/```$/, "").trim();
                     return (
@@ -815,6 +857,76 @@ export default function Dashboard() {
             })}
             <div ref={messagesEndRef} />
           </div>
+
+          {/* ─── MODEL SELECTOR (auto-added) ─────────────────────── */}
+          <div className="relative px-3 py-2 border-t border-zinc-800">
+            <button
+              onClick={() => setShowModelMenu(!showModelMenu)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded bg-zinc-800 hover:bg-zinc-700 text-sm text-gray-200 transition"
+            >
+              <span className="flex items-center gap-2 truncate">
+                <Bot className="w-3.5 h-3.5 text-green-400" />
+                <span className="text-xs text-zinc-500">Model:</span>
+                <span className="font-medium truncate">{currentModelName}</span>
+              </span>
+              <ChevronDown className={`w-4 h-4 flex-shrink-0 transition-transform ${showModelMenu ? "rotate-180" : ""}`} />
+            </button>
+
+            {showModelMenu && (
+              <div className="absolute bottom-full left-3 right-3 mb-2 max-h-96 overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl z-50">
+                <div className="px-3 py-2 border-b border-zinc-800 text-xs text-zinc-400 uppercase tracking-wider">
+                  Available Models ({aiModels.length})
+                </div>
+
+                {aiModels.filter((m) => m.free).length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 text-xs text-green-500 bg-zinc-950/50 font-semibold">FREE</div>
+                    {aiModels.filter((m) => m.free).map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => {
+                          const token = localStorage.getItem("zangbeto_token");
+                          fetch("/api/models/active", {
+                            method: "POST",
+                            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                            body: JSON.stringify({ model_id: m.id }),
+                          }).then(() => { setActiveModelId(m.id); setShowModelMenu(false); });
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-zinc-800 transition flex items-center justify-between ${activeModelId === m.id ? "bg-green-900/40 text-green-300" : "text-gray-300"}`}
+                      >
+                        <span className="truncate">{m.name}</span>
+                        <span className="text-xs text-zinc-500 ml-2 flex-shrink-0">{m.provider}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+
+                {aiModels.filter((m) => !m.free).length > 0 && (
+                  <>
+                    <div className="px-3 py-1.5 text-xs text-yellow-500 bg-zinc-950/50 border-t border-zinc-800 font-semibold">PAID</div>
+                    {aiModels.filter((m) => !m.free).map((m) => (
+                      <button
+                        key={m.id}
+                        onClick={() => {
+                          const token = localStorage.getItem("zangbeto_token");
+                          fetch("/api/models/active", {
+                            method: "POST",
+                            headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+                            body: JSON.stringify({ model_id: m.id }),
+                          }).then(() => { setActiveModelId(m.id); setShowModelMenu(false); });
+                        }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-zinc-800 transition flex items-center justify-between ${activeModelId === m.id ? "bg-green-900/40 text-green-300" : "text-gray-300"}`}
+                      >
+                        <span className="truncate">{m.name}</span>
+                        <span className="text-xs text-zinc-500 ml-2 flex-shrink-0">{m.provider}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+          {/* ─────────────────────────────────────────────────────── */}
 
           <div className="p-3 border-t border-zinc-800 bg-zinc-950 flex items-center gap-2">
             <input

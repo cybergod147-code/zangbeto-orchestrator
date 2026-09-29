@@ -14,7 +14,7 @@ export default function SecurityGate() {
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/auth/setup-required")
+    fetch("/api/auth/setup-required")
       .then(r => r.json())
       .then(d => { setSetupMode(d.setup_required); setChecking(false); })
       .catch(() => { setError("Backend unreachable — start the backend first"); setChecking(false); });
@@ -26,7 +26,7 @@ export default function SecurityGate() {
     if (password !== password2) { setError("Passwords don't match"); return; }
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/auth/setup", {
+      const res = await fetch("/api/auth/setup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
@@ -47,7 +47,7 @@ export default function SecurityGate() {
     setError("");
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/auth/login", {
+      const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
