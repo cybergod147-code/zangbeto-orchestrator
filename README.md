@@ -587,7 +587,7 @@ sudo systemctl status zangbeto-backend zangbeto-frontend zangbeto-ttyd
 
 ## 📝 License
 
-Copyright (c) 2024 Cyber God / Zangbeto Orchestrator. All rights reserved.
+Copyright (c) 2026 Cyber God / Zangbeto Orchestrator. All rights reserved.
 
 This software is proprietary and confidential. Unauthorized copying, redistribution, resale, publication, sublicensing, reverse engineering, or commercial use is prohibited unless explicitly authorized by the copyright holder. The software is provided for authorized private, educational, research, and security-testing purposes subject to applicable law and the terms under which the software is distributed.
 
