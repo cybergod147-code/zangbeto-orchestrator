@@ -1,0 +1,11 @@
+[Unit]
+Description=Zangbeto ttyd Terminal Service
+After=network.target
+
+[Service]
+User=root
+ExecStart=/usr/local/bin/ttyd -p 7681 -W --interface 127.0.0.1 tmux attach -t shared
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
